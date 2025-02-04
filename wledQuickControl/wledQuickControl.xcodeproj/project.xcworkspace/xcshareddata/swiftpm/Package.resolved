@@ -1,4 +1,5 @@
 {
+  "originHash" : "04fa730e23dccf358f5feda0233a12a19d8e5b2ebaba1556d4f1073dd243ddf5",
   "pins" : [
     {
       "identity" : "launchatlogin",
@@ -6,9 +7,9 @@
       "location" : "https://github.com/sindresorhus/LaunchAtLogin",
       "state" : {
         "branch" : "main",
-        "revision" : "e8171b3e38a2816f579f58f3dac1522aa39efe41"
+        "revision" : "9a894d799269cb591037f9f9cb0961510d4dca81"
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }
