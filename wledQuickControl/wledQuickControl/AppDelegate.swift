@@ -64,12 +64,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
           if (button.image == menuIconOn){
             
             button.image = menuIconOff
-            mainView.postValues(sendOnOff: true, on: false, sendBri: false, bri: 0)
+            mainView.postValues(sendOnOff: true, on: false, sendBri: false, bri: 0, sendPreset: false, preset: 0)
             
           } else {
             
             button.image = menuIconOn
-            mainView.postValues(sendOnOff: true, on: true, sendBri: false, bri: 0)
+            mainView.postValues(sendOnOff: true, on: true, sendBri: false, bri: 0, sendPreset: false, preset: 0)
             
           }
           

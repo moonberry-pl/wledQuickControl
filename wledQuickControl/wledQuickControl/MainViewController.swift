@@ -15,11 +15,20 @@ class MainViewController: NSViewController {
   @IBOutlet weak var settingsButton: NSButtonCell!
   @IBOutlet weak var textfieldWledHost: NSTextField!
   @IBOutlet weak var saveButton: NSButton!
+  @IBOutlet weak var comboButton: NSComboButton!
   
   let defaults = UserDefaults.standard
   let appDelegate: AppDelegate? = NSApplication.shared.delegate as? AppDelegate
   
   var wledIp = ""
+  var presetsList = [NSDictionary]()
+  var currentPresetId = -1
+  
+  struct FilteredItem: Codable {
+      let index: Int
+      let on: Bool
+      let n: String
+  }
   
   override func viewDidLoad() {
     
@@ -27,6 +36,9 @@ class MainViewController: NSViewController {
 
     mainView.frame.size.width = 320
     brightnessSlider.isContinuous = true
+    
+    // Tworzymy i przypisujemy menu do istniejącego NSComboButton
+    comboButton.menu = createMenu()
 
   }
   
@@ -99,7 +111,7 @@ class MainViewController: NSViewController {
   }
   
   
-  func postValues(sendOnOff: Bool, on: Bool, sendBri: Bool, bri: Int) {
+  func postValues(sendOnOff: Bool, on: Bool, sendBri: Bool, bri: Int, sendPreset: Bool, preset: Int) {
     
     if(isKeyPresentInUserDefaults(key: "wledIp")){
       
@@ -115,6 +127,10 @@ class MainViewController: NSViewController {
       } else if(sendBri) {
         
         jsonData = ["bri": round(Double(bri) * 2.55)]
+        
+      } else if (sendPreset) {
+        
+        jsonData = ["ps": preset]
         
       }
       
@@ -139,6 +155,7 @@ class MainViewController: NSViewController {
       
       let on: Bool
       let bri: Int
+      let ps: Int
       
     }
     
@@ -160,6 +177,8 @@ class MainViewController: NSViewController {
                 let mappedBri = Int(round(Double(res.bri) / 2.55))
                 self.brightnessSliderLabel.stringValue = "\(mappedBri)%"
                 self.brightnessSlider.integerValue = mappedBri
+                self.currentPresetId = res.ps
+                self.comboButton.title = "Preset \(res.ps)"
                 
               }
               
@@ -226,7 +245,7 @@ class MainViewController: NSViewController {
       brightnessSliderLabel.stringValue = "\(val)%"
     case .leftMouseUp, .rightMouseUp:
       brightnessSliderLabel.stringValue = "\(val)%"
-      postValues(sendOnOff: false, on: false, sendBri: true, bri: val)
+      postValues(sendOnOff: false, on: false, sendBri: true, bri: val, sendPreset: false, preset: 0)
     default:
       break
       
@@ -234,8 +253,92 @@ class MainViewController: NSViewController {
     
     
   }
+
+  // Funkcja tworząca menu z dynamicznymi opcjami
+  func createMenu() -> NSMenu {
+    
+    let menu = NSMenu(title: "Presets")
+   
+    if(isKeyPresentInUserDefaults(key: "wledIp")){
+      
+      wledIp = defaults.value(forKey: "wledIp") as! String
+      
+      let urlString = "http://\(wledIp)/presets.json"
+      
+      fetchAndFilterJSON(from: urlString) { result in
+        switch result {
+        case .success(let items):
+          for item in items {
+            
+            let menuItem = NSMenuItem(title: item.n, action: #selector(self.menuItemSelected(_:)), keyEquivalent: "")
+            menuItem.tag = item.index  // Ustawiamy numer Index jako tag
+            menuItem.target = self
+            menu.addItem(menuItem)
+          }
+        case .failure(let error):
+          print("Error: \(error.localizedDescription)")
+        }
+      }
+    }
+
+    return menu
+  }
   
+  // Obsługa kliknięcia na element menu
+  @objc func menuItemSelected(_ sender: NSMenuItem) {
+    comboButton.title = sender.title
+    postValues(sendOnOff: false, on: false, sendBri: false, bri: 0, sendPreset: true, preset: sender.tag )
+  }
   
+  func fetchAndFilterJSON(from urlString: String, completion: @escaping (Result<[FilteredItem], Error>) -> Void) {
+    
+      guard let url = URL(string: urlString) else {
+          completion(.failure(NSError(domain: "InvalidURL", code: -1, userInfo: nil)))
+          return
+      }
+      
+      let task = URLSession.shared.dataTask(with: url) { data, response, error in
+          if let error = error {
+              completion(.failure(error))
+              return
+          }
+          
+          guard let data = data else {
+              completion(.failure(NSError(domain: "NoData", code: -1, userInfo: nil)))
+              return
+          }
+          
+          do {
+              // Parsowanie JSON
+              if let jsonObject = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+                  var filteredItems: [FilteredItem] = []
+                  
+                  for (index, item) in jsonObject {
+                      // Pomijamy puste obiekty (np. klucz "0" w Twoim przykładzie)
+                      guard let itemDict = item as? [String: Any], !itemDict.isEmpty else {
+                          continue
+                      }
+                      
+                      // Sprawdzamy, czy obiekt ma klucze "on" i "n"
+                      if let on = itemDict["on"] as? Bool,
+                         let n = itemDict["n"] as? String {
+                          // Dodajemy tylko wymagane dane
+                          filteredItems.append(FilteredItem(index: Int(index) ?? 0, on: on, n: n))
+                      }
+                  }
+                  
+                  completion(.success(filteredItems))
+              } else {
+                  completion(.failure(NSError(domain: "InvalidJSON", code: -1, userInfo: nil)))
+              }
+          } catch {
+              completion(.failure(error))
+          }
+      }
+      
+      task.resume()
+  }
+
   @IBAction func clickedSaveButton(_ sender: Any) {
     
     defaults.set(textfieldWledHost.stringValue, forKey: "wledIp")
